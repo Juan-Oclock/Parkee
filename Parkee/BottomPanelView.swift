@@ -111,6 +111,7 @@ struct BottomPanelView: View, Equatable {
                 expandedNotes = true
             }
         }
+        .contentShape(Rectangle())
         .onTapGesture {
             self.endEditing()
         }
