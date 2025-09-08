@@ -232,7 +232,6 @@ struct BottomPanelView: View, Equatable {
                     
                     Spacer()
                     
-                    // Timer display with local updates only
                     if isTimerRunning {
                         TimelineView(.periodic(from: .now, by: 1)) { timeline in
                             Text(elapsedTimeString(reference: timeline.date))
