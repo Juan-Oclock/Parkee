@@ -12,7 +12,7 @@ import UIKit
 
 // MARK: - Main View
 struct ParkingDetailsView: View {
-    let viewModel: ParkingViewModel  // Changed from @ObservedObject to let
+    @ObservedObject var viewModel: ParkingViewModel
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.displayScale) var displayScale
@@ -32,13 +32,7 @@ struct ParkingDetailsView: View {
         colorScheme == .dark ? .white : .black
     }
 
-    init(viewModel: ParkingViewModel) {
-        self.viewModel = viewModel
-        _savedLocation = State(initialValue: viewModel.savedLocation)
-        _savedAddress = State(initialValue: viewModel.savedAddress)
-        _lastKnownCoordinate = State(initialValue: viewModel.lastKnownCoordinate)
-        _parkingNotes = State(initialValue: viewModel.parkingNotes)
-    }
+    
     
     var body: some View {
         ZStack {
