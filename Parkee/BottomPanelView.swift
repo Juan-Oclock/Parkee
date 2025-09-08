@@ -111,6 +111,9 @@ struct BottomPanelView: View, Equatable {
                 expandedNotes = true
             }
         }
+        .onTapGesture {
+            self.endEditing()
+        }
         .onChange(of: notesFocused) { _, isFocused in
             if !isFocused {
                 withAnimation(.easeInOut(duration: 0.25)) {
@@ -319,6 +322,10 @@ struct BottomPanelView: View, Equatable {
         return accumulatedSeconds
     }
     
+    private func endEditing() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
+
     // Equatable conformance to prevent unnecessary updates
     static func == (lhs: BottomPanelView, rhs: BottomPanelView) -> Bool {
         lhs.parkingNotes == rhs.parkingNotes &&
