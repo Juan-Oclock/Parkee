@@ -31,6 +31,14 @@ struct ParkingDetailsView: View {
     var primaryText: Color {
         colorScheme == .dark ? .white : .black
     }
+
+    init(viewModel: ParkingViewModel) {
+        self.viewModel = viewModel
+        _savedLocation = State(initialValue: viewModel.savedLocation)
+        _savedAddress = State(initialValue: viewModel.savedAddress)
+        _lastKnownCoordinate = State(initialValue: viewModel.lastKnownCoordinate)
+        _parkingNotes = State(initialValue: viewModel.parkingNotes)
+    }
     
     var body: some View {
         ZStack {
@@ -86,14 +94,7 @@ struct ParkingDetailsView: View {
                 .presentationCornerRadius(32)
             }
         }
-        .onAppear {
-            // Cache values from viewModel on appear
-            savedLocation = viewModel.savedLocation
-            savedAddress = viewModel.savedAddress
-            lastKnownCoordinate = viewModel.lastKnownCoordinate
-            parkingNotes = viewModel.parkingNotes
-            setupMapPosition()
-        }
+        
     }
     
     // MARK: - Map View
