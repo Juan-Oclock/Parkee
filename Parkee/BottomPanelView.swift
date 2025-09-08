@@ -10,7 +10,7 @@ import SwiftUI
 struct BottomPanelView: View, Equatable {
     // Only the specific data we need - not the whole ViewModel
     @Binding var parkingNotes: String
-    let isTimerRunning: Bool
+    @Binding var isTimerRunning: Bool
     let timerStartDate: Date?
     let accumulatedSeconds: TimeInterval
     let savedAddress: String?

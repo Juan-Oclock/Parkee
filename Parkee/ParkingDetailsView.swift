@@ -55,7 +55,7 @@ struct ParkingDetailsView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             BottomPanelView(
                 parkingNotes: $parkingNotes,
-                isTimerRunning: viewModel.isTimerRunning,
+                isTimerRunning: $viewModel.isTimerRunning,
                 timerStartDate: viewModel.timerStart,
                 accumulatedSeconds: viewModel.accumulatedSeconds,
                 savedAddress: viewModel.savedAddress,
