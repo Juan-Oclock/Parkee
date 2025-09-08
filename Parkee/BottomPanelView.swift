@@ -111,6 +111,13 @@ struct BottomPanelView: View, Equatable {
                 expandedNotes = true
             }
         }
+        .onChange(of: notesFocused) { _, isFocused in
+            if !isFocused {
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    expandedNotes = false
+                }
+            }
+        }
     }
     
     // MARK: - Notes Section
@@ -122,19 +129,14 @@ struct BottomPanelView: View, Equatable {
                 withAnimation(.easeInOut(duration: 0.25)) {
                     expandedNotes.toggle()
                 }
-                if expandedNotes {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        notesFocused = true
-                    }
-                }
             }) {
                 HStack {
                     Text("Parking Notes")
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(secondaryText)
-                    
+
                     Spacer()
-                    
+
                     if !expandedNotes && !parkingNotes.isEmpty {
                         Text(parkingNotes)
                             .font(.system(size: 14))
@@ -143,7 +145,7 @@ struct BottomPanelView: View, Equatable {
                             .truncationMode(.tail)
                             .frame(maxWidth: 150, alignment: .trailing)
                     }
-                    
+
                     Image(systemName: expandedNotes ? "chevron.up" : "chevron.down")
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(colorScheme == .dark ? Color.yellowGreen : primaryText)
@@ -154,7 +156,7 @@ struct BottomPanelView: View, Equatable {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            
+
             // Expanded Content
             VStack(alignment: .leading, spacing: 0) {
                 if expandedNotes {
@@ -165,7 +167,7 @@ struct BottomPanelView: View, Equatable {
                                 .padding(.horizontal, 20)
                                 .padding(.vertical, 12)
                         }
-                        
+
                         TextEditor(text: $parkingNotes)
                             .scrollContentBackground(.hidden)
                             .background(Color.clear)
@@ -187,6 +189,13 @@ struct BottomPanelView: View, Equatable {
                 .fill(cardBackground)
         )
         .padding(.top, 16)
+        .onChange(of: expandedNotes) { _, isExpanded in
+            if isExpanded {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    notesFocused = true
+                }
+            }
+        }
     }
     
     // MARK: - Timer Section
