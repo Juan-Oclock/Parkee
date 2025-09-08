@@ -111,10 +111,7 @@ struct BottomPanelView: View, Equatable {
                 expandedNotes = true
             }
         }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            self.endEditing()
-        }
+        
         .onChange(of: notesFocused) { _, isFocused in
             if !isFocused {
                 withAnimation(.easeInOut(duration: 0.25)) {
@@ -182,6 +179,14 @@ struct BottomPanelView: View, Equatable {
                             .frame(minHeight: 60, maxHeight: 120)
                             .focused($notesFocused)
                             .environment(\.colorScheme, colorScheme) // Ensure proper theming
+                            .toolbar {
+                                ToolbarItemGroup(placement: .keyboard) {
+                                    Spacer()
+                                    Button("Done") {
+                                        notesFocused = false
+                                    }
+                                }
+                            }
                     }
                 }
             }
@@ -323,9 +328,7 @@ struct BottomPanelView: View, Equatable {
         return accumulatedSeconds
     }
     
-    private func endEditing() {
-        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-    }
+    
 
     // Equatable conformance to prevent unnecessary updates
     static func == (lhs: BottomPanelView, rhs: BottomPanelView) -> Bool {
