@@ -170,6 +170,8 @@ struct ContentView: View {
                             .font(.system(size: 20, weight: .semibold))
                             .foregroundStyle(viewModel.useDarkMap ? .white : .black)
                             .shadow(radius: 3)
+                            .frame(minWidth: 44, minHeight: 44)  // Ensure adequate touch target
+                            .contentShape(Rectangle())  // Define clear tap area
                     }
                     Spacer()
                     Text("Parkee")
@@ -182,6 +184,8 @@ struct ContentView: View {
                             .font(.system(size: 20, weight: .semibold))
                             .foregroundStyle(viewModel.useDarkMap ? .white : .black)
                             .shadow(radius: 3)
+                            .frame(minWidth: 44, minHeight: 44)  // Ensure adequate touch target
+                            .contentShape(Rectangle())  // Define clear tap area
                     }
                 }
                 .padding(.horizontal, 16)
