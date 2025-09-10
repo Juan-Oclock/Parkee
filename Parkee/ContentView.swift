@@ -19,7 +19,7 @@ struct ContentView: View {
     @State private var showParkingDetailsSheet = false
     @State private var showEndSessionConfirm = false
     @State private var parkingNotes: String = ""
-    @State private var annotationOffset: CGFloat = 0
+    @State private var mapCameraOffset: CGFloat = 0
     @State private var showCustomEndAlert = false
     @State private var pulseAnimation: Bool = false
     @State private var hasInitializedCamera = false
@@ -126,8 +126,6 @@ struct ContentView: View {
                                 pulseAnimation = true
                             }
                         }
-                        .offset(y: annotationOffset)
-                        .animation(.easeInOut(duration: 0.4), value: annotationOffset)
                     }
                 }
             }
@@ -161,14 +159,7 @@ struct ContentView: View {
             .onReceive(viewModel.$savedLocation) { savedLoc in
                 // Zoom to parking location when it's saved
                 guard let location = savedLoc else { return }
-                withAnimation(.easeInOut(duration: 0.6)) {
-                    cameraPosition = .region(
-                        MKCoordinateRegion(
-                            center: location.coordinate,
-                            span: MKCoordinateSpan(latitudeDelta: 0.005, longitudeDelta: 0.005)
-                        )
-                    )
-                }
+                updateCameraForSavedLocation(location: location, offset: mapCameraOffset)
             }
 
             // Title + top action icons (anchored to top)
@@ -207,12 +198,20 @@ struct ContentView: View {
                 Button(action: {
                     // Save location first if needed, then show details
                     if viewModel.savedLocation == nil {
-                        viewModel.saveCurrentLocation()
-                        // Wait for save to complete before showing sheet
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                            // Load notes from viewModel when showing sheet
+                        // Try immediate save using cached location
+                        let savedImmediately = viewModel.saveLocationImmediately()
+                        
+                        if savedImmediately {
+                            // Location saved immediately, show sheet right away
                             parkingNotes = viewModel.parkingNotes
                             showParkingDetailsSheet = true
+                        } else {
+                            // Need to wait for async location update
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                // Load notes from viewModel when showing sheet
+                                parkingNotes = viewModel.parkingNotes
+                                showParkingDetailsSheet = true
+                            }
                         }
                     } else {
                         // Load notes from viewModel when showing sheet
@@ -401,14 +400,20 @@ struct ContentView: View {
             }
         )
         .onChange(of: showParkingDetailsSheet) { _, isShowing in
-            // Move entire annotation up when modal is shown, down when hidden
+            // Adjust map camera when modal is shown to keep annotation visible
             if !showDirectionsModal {  // Only adjust if directions modal isn't shown
-                annotationOffset = isShowing ? -150 : 0
+                mapCameraOffset = isShowing ? -0.002 : 0  // Negative moves map up
+                if let location = viewModel.savedLocation {
+                    updateCameraForSavedLocation(location: location, offset: mapCameraOffset)
+                }
             }
         }
         .onChange(of: showDirectionsModal) { _, isShowing in
-            // Move entire annotation up when directions modal is shown, down when hidden
-            annotationOffset = isShowing ? -150 : 0
+            // Adjust map camera when directions modal is shown
+            mapCameraOffset = isShowing ? -0.002 : 0  // Negative moves map up
+            if let location = viewModel.savedLocation {
+                updateCameraForSavedLocation(location: location, offset: mapCameraOffset)
+            }
         }
         .sheet(isPresented: $showParkingDetailsSheet, onDismiss: {
             // Save notes back to viewModel when sheet is dismissed (not ending session)
@@ -463,6 +468,24 @@ struct ContentView: View {
 
 // MARK: - Helper Functions
 extension ContentView {
+    private func updateCameraForSavedLocation(location: ParkingLocation, offset: CGFloat) {
+        // Calculate the center point with offset applied
+        // Negative offset moves the map up (so annotation appears higher on screen)
+        let adjustedCenter = CLLocationCoordinate2D(
+            latitude: location.coordinate.latitude + offset,
+            longitude: location.coordinate.longitude
+        )
+        
+        withAnimation(.easeInOut(duration: 0.4)) {
+            cameraPosition = .region(
+                MKCoordinateRegion(
+                    center: adjustedCenter,
+                    span: MKCoordinateSpan(latitudeDelta: 0.005, longitudeDelta: 0.005)
+                )
+            )
+        }
+    }
+    
     private func timeAgoString(from date: Date) -> String {
         let now = Date()
         let interval = now.timeIntervalSince(date)

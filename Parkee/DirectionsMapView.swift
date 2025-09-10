@@ -10,16 +10,18 @@ import MapKit
 import CoreLocation
 
 struct DirectionsMapView: View {
-    let currentLocation: CLLocationCoordinate2D
+    let initialLocation: CLLocationCoordinate2D
     let destination: CLLocationCoordinate2D
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) var colorScheme
     @StateObject private var viewModel: DirectionsViewModel
     @State private var cameraPosition: MapCameraPosition = .automatic
+    @State private var currentUserLocation: CLLocationCoordinate2D
     
     init(currentLocation: CLLocationCoordinate2D, destination: CLLocationCoordinate2D) {
-        self.currentLocation = currentLocation
+        self.initialLocation = currentLocation
         self.destination = destination
+        self._currentUserLocation = State(initialValue: currentLocation)
         self._viewModel = StateObject(wrappedValue: DirectionsViewModel(
             from: currentLocation,
             to: destination
@@ -50,8 +52,8 @@ struct DirectionsMapView: View {
                 backgroundColor.ignoresSafeArea()
                 
                 Map(position: $cameraPosition) {
-                    // Current location marker
-                    Annotation("Your Location", coordinate: currentLocation) {
+                    // Current location marker - now using updated location
+                    Annotation("Your Location", coordinate: currentUserLocation) {
                         ZStack {
                             Circle()
                                 .fill(Color.blue.opacity(0.3))
@@ -95,13 +97,14 @@ struct DirectionsMapView: View {
                 .onAppear {
                     // Set initial camera position to show both points
                     let region = regionThatFits(
-                        coordinate1: currentLocation,
+                        coordinate1: currentUserLocation,
                         coordinate2: destination
                     )
                     cameraPosition = .region(region)
                     
-                    // Request directions
+                    // Request directions and start location updates
                     viewModel.getDirections()
+                    viewModel.startLocationUpdates()
                 }
                 .onReceive(viewModel.$route) { route in
                     // Adjust camera when route is calculated to show the entire route
@@ -110,13 +113,27 @@ struct DirectionsMapView: View {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                             withAnimation(.easeInOut(duration: 0.5)) {
                                 let adjustedRegion = regionThatFits(
-                                    coordinate1: currentLocation,
+                                    coordinate1: currentUserLocation,
                                     coordinate2: destination
                                 )
                                 cameraPosition = .region(adjustedRegion)
                             }
                         }
                     }
+                }
+                .onReceive(viewModel.$userLocation) { newLocation in
+                    // Update user location when it changes
+                    if let newLocation = newLocation {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            currentUserLocation = newLocation
+                        }
+                        // Recalculate route if user has moved significantly
+                        viewModel.updateRouteIfNeeded(from: newLocation)
+                    }
+                }
+                .onDisappear {
+                    // Stop location updates when view disappears
+                    viewModel.stopLocationUpdates()
                 }
                 
                 // Loading indicator
@@ -395,18 +412,64 @@ struct DirectionsMapView: View {
     }
 }
 
-// ViewModel for handling directions
-class DirectionsViewModel: ObservableObject {
+// ViewModel for handling directions and location updates
+class DirectionsViewModel: NSObject, ObservableObject {
     @Published var route: MKRoute?
     @Published var isLoading = false
     @Published var errorMessage: String?
+    @Published var userLocation: CLLocationCoordinate2D?
     
-    private let fromCoordinate: CLLocationCoordinate2D
+    private var fromCoordinate: CLLocationCoordinate2D
     private let toCoordinate: CLLocationCoordinate2D
+    private let locationManager = CLLocationManager()
+    private var lastRouteUpdateLocation: CLLocationCoordinate2D?
+    private let routeUpdateThreshold: CLLocationDistance = 50 // meters
     
     init(from: CLLocationCoordinate2D, to: CLLocationCoordinate2D) {
         self.fromCoordinate = from
         self.toCoordinate = to
+        self.userLocation = from
+        super.init()
+        setupLocationManager()
+    }
+    
+    private func setupLocationManager() {
+        locationManager.delegate = self
+        locationManager.desiredAccuracy = kCLLocationAccuracyBest
+        locationManager.distanceFilter = 10 // Update every 10 meters
+    }
+    
+    func startLocationUpdates() {
+        // Check authorization status
+        let status = locationManager.authorizationStatus
+        if status == .authorizedWhenInUse || status == .authorizedAlways {
+            locationManager.startUpdatingLocation()
+        }
+    }
+    
+    func stopLocationUpdates() {
+        locationManager.stopUpdatingLocation()
+    }
+    
+    func updateRouteIfNeeded(from newLocation: CLLocationCoordinate2D) {
+        // Update the from coordinate
+        self.fromCoordinate = newLocation
+        
+        // Check if we need to recalculate the route
+        if let lastLocation = lastRouteUpdateLocation {
+            let lastCLLocation = CLLocation(latitude: lastLocation.latitude, longitude: lastLocation.longitude)
+            let newCLLocation = CLLocation(latitude: newLocation.latitude, longitude: newLocation.longitude)
+            let distance = newCLLocation.distance(from: lastCLLocation)
+            
+            // Only recalculate if user has moved significantly
+            if distance > routeUpdateThreshold {
+                getDirections()
+                lastRouteUpdateLocation = newLocation
+            }
+        } else {
+            // First route calculation
+            lastRouteUpdateLocation = newLocation
+        }
     }
     
     func getDirections() {
@@ -437,6 +500,22 @@ class DirectionsViewModel: ObservableObject {
                 self?.route = route
             }
         }
+    }
+}
+
+// MARK: - CLLocationManagerDelegate
+extension DirectionsViewModel: CLLocationManagerDelegate {
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard let location = locations.last else { return }
+        
+        // Update published user location
+        DispatchQueue.main.async {
+            self.userLocation = location.coordinate
+        }
+    }
+    
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        print("Location update failed: \(error.localizedDescription)")
     }
 }
 

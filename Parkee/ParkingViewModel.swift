@@ -184,6 +184,9 @@ final class ParkingViewModel: NSObject, ObservableObject {
         super.init()
         self.locationManager.delegate = self
         self.locationManager.desiredAccuracy = kCLLocationAccuracyBest
+        // Start updating location immediately for better responsiveness
+        self.locationManager.distanceFilter = 5 // Update every 5 meters
+        
         loadPersistedLocation()
         loadNotesAndTimer()
         loadPhoto()
@@ -202,6 +205,15 @@ final class ParkingViewModel: NSObject, ObservableObject {
         autoStartTimer = defaults.bool(forKey: autoStartTimerKey)
         hasSeenOnboarding = defaults.bool(forKey: onboardingKey)
         authorizationStatus = locationManager.authorizationStatus
+        
+        // Start continuous location updates if authorized
+        if authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways {
+            locationManager.startUpdatingLocation()
+            // Stop after a short time to save battery
+            DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
+                self?.locationManager.stopUpdatingLocation()
+            }
+        }
     }
 
     // MARK: - Permissions
@@ -280,6 +292,63 @@ final class ParkingViewModel: NSObject, ObservableObject {
 
         // Request one location update
         locationManager.requestLocation()
+    }
+    
+    /// Immediately saves location using cached coordinate if available
+    /// Returns true if location was saved immediately, false if async save is needed
+    func saveLocationImmediately() -> Bool {
+        errorMessage = nil
+        
+        // Ensure permission
+        let status = locationManager.authorizationStatus
+        guard status == .authorizedWhenInUse || status == .authorizedAlways else {
+            requestPermissionIfNeeded()
+            return false
+        }
+        
+        // Try to use cached location first for immediate save
+        if let cachedCoordinate = immediateCoordinate() {
+            // Check if location is recent enough (within last 30 seconds)
+            if let recentLocation = locationManager.location,
+               abs(recentLocation.timestamp.timeIntervalSinceNow) < 30 {
+                // Use cached location immediately
+                let saved = ParkingLocation(
+                    latitude: cachedCoordinate.latitude,
+                    longitude: cachedCoordinate.longitude
+                )
+                savedLocation = saved
+                persist(location: saved)
+                
+                // Start reverse geocoding in background
+                reverseGeocode(coordinate: saved.coordinate)
+                
+                // Clear notes for new parking session
+                if parkingNotes != "" {
+                    parkingNotes = ""
+                    defaults.removeObject(forKey: notesKey)
+                }
+                
+                // Reset Notes section to be open by default
+                showNotes = true
+                
+                // Trigger haptic feedback for immediate save
+                if isHapticsEnabled {
+                    let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+                    impactFeedback.prepare()
+                    impactFeedback.impactOccurred()
+                }
+                
+                // Also request a fresh location update to ensure accuracy
+                locationManager.requestLocation()
+                
+                return true
+            }
+        }
+        
+        // Fall back to async location request
+        isSaving = true
+        locationManager.requestLocation()
+        return false
     }
 
     /// Refreshes current GPS once to update the map display, without saving
@@ -510,8 +579,14 @@ extension ParkingViewModel: CLLocationManagerDelegate {
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         authorizationStatus = manager.authorizationStatus
         if authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways {
-            // Fetch a single location to center the map by default
-            manager.requestLocation()
+            // Start continuous updates briefly to get fresh location quickly
+            manager.startUpdatingLocation()
+            // Stop after getting a few updates to save battery
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+                manager.stopUpdatingLocation()
+                // Then request single update for final position
+                manager.requestLocation()
+            }
         }
     }
 

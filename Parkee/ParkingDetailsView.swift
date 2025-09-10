@@ -137,8 +137,6 @@ struct ParkingDetailsView: View {
                 // Bottom button to show details
                 Button(action: {
                     showDetailsSheet = true
-                    // Adjust camera position to keep location visible above modal
-                    adjustCameraForModal()
                 }) {
                     HStack(spacing: 12) {
                         Image(systemName: "car.fill")
@@ -165,6 +163,25 @@ struct ParkingDetailsView: View {
         .onAppear {
             // Sync notes with viewModel when view appears (important for new sessions)
             parkingNotes = viewModel.parkingNotes
+            
+            // Update cached location if it changed
+            if let newLocation = viewModel.savedLocation {
+                savedLocation = newLocation
+                // Update camera to show new location
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    cameraPosition = .region(
+                        MKCoordinateRegion(
+                            center: newLocation.coordinate,
+                            span: MKCoordinateSpan(latitudeDelta: 0.005, longitudeDelta: 0.005)
+                        )
+                    )
+                }
+            }
+            
+            // Update address if available
+            if let address = viewModel.savedAddress {
+                savedAddress = address
+            }
             
             // Start periodic timer sync with proper reference for cleanup
             updateTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
@@ -200,9 +217,41 @@ struct ParkingDetailsView: View {
             updateTimer?.invalidate()
             updateTimer = nil
         }
+        .onReceive(viewModel.$savedLocation) { newLocation in
+            // Update when location changes (happens after immediate save)
+            if let location = newLocation, location != savedLocation {
+                savedLocation = location
+                withAnimation(.easeInOut(duration: 0.4)) {
+                    cameraPosition = .region(
+                        MKCoordinateRegion(
+                            center: location.coordinate,
+                            span: MKCoordinateSpan(latitudeDelta: 0.005, longitudeDelta: 0.005)
+                        )
+                    )
+                }
+            }
+        }
+        .onReceive(viewModel.$savedAddress) { newAddress in
+            // Update address when it becomes available
+            if let address = newAddress {
+                savedAddress = address
+            }
+        }
         .onChange(of: showDetailsSheet) { _, isShowing in
-            if !isShowing {
+            if isShowing {
+                // Adjust camera when modal is shown
+                adjustCameraForModal()
+            } else {
                 // Reset camera position when modal is dismissed
+                resetCameraPosition()
+            }
+        }
+        .onChange(of: showDirectionsModal) { _, isShowing in
+            if isShowing {
+                // Adjust camera when directions modal is shown
+                adjustCameraForModal()
+            } else if !showDetailsSheet {
+                // Reset only if details sheet is also not showing
                 resetCameraPosition()
             }
         }
