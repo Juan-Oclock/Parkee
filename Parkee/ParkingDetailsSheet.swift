@@ -138,10 +138,10 @@ struct ParkingDetailsSheet: View {
             }
         }
         .onAppear {
-            // Auto-expand notes if they exist
-            if !parkingNotes.isEmpty {
-                expandedNotes = true
-            }
+            // Always start with notes section closed
+            expandedNotes = false
+            expandedTimer = false
+            notesFocused = false
         }
     }
     
@@ -247,17 +247,13 @@ struct ParkingDetailsSheet: View {
                     
                     Spacer()
                     
-                    if isTimerRunning {
-                        TimelineView(.periodic(from: .now, by: 1)) { timeline in
-                            Text(elapsedTimeString(reference: timeline.date))
-                                .font(.system(size: 16, weight: .bold, design: .monospaced))
-                                .foregroundColor(Color.yellowGreen)
-                        }
-                    } else {
-                        Text(elapsedTimeString(reference: Date()))
-                            .font(.system(size: 16, weight: .bold, design: .monospaced))
-                            .foregroundColor(primaryText)
-                    }
+                    // Isolated timer view to prevent parent re-renders
+                    TimerDisplayView(
+                        isRunning: isTimerRunning,
+                        startDate: timerStartDate,
+                        accumulatedSeconds: accumulatedSeconds,
+                        textColor: isTimerRunning ? Color.yellowGreen : primaryText
+                    )
                     
                     Image(systemName: expandedTimer ? "chevron.up" : "chevron.down")
                         .font(.system(size: 14, weight: .medium))
@@ -331,6 +327,48 @@ struct ParkingDetailsSheet: View {
     
     private func currentElapsedSeconds(reference: Date) -> TimeInterval {
         if isTimerRunning, let start = timerStartDate {
+            return accumulatedSeconds + reference.timeIntervalSince(start)
+        }
+        return accumulatedSeconds
+    }
+}
+
+// Isolated timer display to prevent parent view re-renders
+struct TimerDisplayView: View {
+    let isRunning: Bool
+    let startDate: Date?
+    let accumulatedSeconds: TimeInterval
+    let textColor: Color
+    
+    var body: some View {
+        if isRunning {
+            TimelineView(.periodic(from: .now, by: 1)) { timeline in
+                Text(elapsedTimeString(reference: timeline.date))
+                    .font(.system(size: 16, weight: .bold, design: .monospaced))
+                    .foregroundColor(textColor)
+            }
+        } else {
+            Text(elapsedTimeString(reference: Date()))
+                .font(.system(size: 16, weight: .bold, design: .monospaced))
+                .foregroundColor(textColor)
+        }
+    }
+    
+    private func elapsedTimeString(reference: Date) -> String {
+        let seconds = currentElapsedSeconds(reference: reference)
+        let total = Int(seconds.rounded())
+        let hrs = total / 3600
+        let mins = (total % 3600) / 60
+        let secs = total % 60
+        
+        if hrs > 0 {
+            return String(format: "%02d:%02d:%02d", hrs, mins, secs)
+        }
+        return String(format: "%02d:%02d", mins, secs)
+    }
+    
+    private func currentElapsedSeconds(reference: Date) -> TimeInterval {
+        if isRunning, let start = startDate {
             return accumulatedSeconds + reference.timeIntervalSince(start)
         }
         return accumulatedSeconds

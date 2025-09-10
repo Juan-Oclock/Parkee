@@ -28,7 +28,10 @@ final class ParkingViewModel: NSObject, ObservableObject {
     @Published var savedLocationName: String? = nil
     /// User-entered notes about the parking spot
     @Published var parkingNotes: String = "" {
-        didSet { defaults.set(parkingNotes, forKey: notesKey) }
+        didSet { 
+            guard oldValue != parkingNotes else { return }
+            defaults.set(parkingNotes, forKey: notesKey) 
+        }
     }
     /// Timer state
     @Published var isTimerRunning: Bool = false
@@ -44,31 +47,101 @@ final class ParkingViewModel: NSObject, ObservableObject {
     /// Optional saved photo URL
     @Published var photoURL: URL? = nil
     /// Map appearance preference
-    @Published var useDarkMap: Bool = false { didSet { defaults.set(useDarkMap, forKey: darkMapKey) } }
+    @Published var useDarkMap: Bool = false { 
+        didSet { 
+            guard oldValue != useDarkMap else { return }
+            defaults.set(useDarkMap, forKey: darkMapKey) 
+        } 
+    }
     /// Map style preference label ("standard" | "imagery" | "hybrid")
-    @Published var preferredMapStyle: String = "standard" { didSet { defaults.set(preferredMapStyle, forKey: preferredMapStyleKey) } }
+    @Published var preferredMapStyle: String = "standard" { 
+        didSet { 
+            guard oldValue != preferredMapStyle else { return }
+            defaults.set(preferredMapStyle, forKey: preferredMapStyleKey) 
+        } 
+    }
     /// Show compass overlay
-    @Published var showCompass: Bool = false { didSet { defaults.set(showCompass, forKey: showCompassKey) } }
+    @Published var showCompass: Bool = false { 
+        didSet { 
+            guard oldValue != showCompass else { return }
+            defaults.set(showCompass, forKey: showCompassKey) 
+        } 
+    }
     /// Show scale overlay
-    @Published var showScale: Bool = false { didSet { defaults.set(showScale, forKey: showScaleKey) } }
+    @Published var showScale: Bool = false { 
+        didSet { 
+            guard oldValue != showScale else { return }
+            defaults.set(showScale, forKey: showScaleKey) 
+        } 
+    }
     /// Follow user on launch
-    @Published var followOnLaunch: Bool = true { didSet { defaults.set(followOnLaunch, forKey: followOnLaunchKey) } }
+    @Published var followOnLaunch: Bool = true { 
+        didSet { 
+            guard oldValue != followOnLaunch else { return }
+            defaults.set(followOnLaunch, forKey: followOnLaunchKey) 
+        } 
+    }
     /// Prefer address over coordinates in UI
-    @Published var showAddress: Bool = true { didSet { defaults.set(showAddress, forKey: showAddressKey) } }
+    @Published var showAddress: Bool = true { 
+        didSet { 
+            guard oldValue != showAddress else { return }
+            defaults.set(showAddress, forKey: showAddressKey) 
+        } 
+    }
     /// Apple Maps directions mode ("driving" | "walking")
-    @Published var mapsDirectionsMode: String = "driving" { didSet { defaults.set(mapsDirectionsMode, forKey: mapsModeKey) } }
+    @Published var mapsDirectionsMode: String = "driving" { 
+        didSet { 
+            guard oldValue != mapsDirectionsMode else { return }
+            defaults.set(mapsDirectionsMode, forKey: mapsModeKey) 
+        } 
+    }
     /// Units ("miles" | "km")
-    @Published var units: String = "miles" { didSet { defaults.set(units, forKey: unitsKey) } }
+    @Published var units: String = "miles" { 
+        didSet { 
+            guard oldValue != units else { return }
+            defaults.set(units, forKey: unitsKey) 
+        } 
+    }
     /// Haptics on key actions
-    @Published var isHapticsEnabled: Bool = true { didSet { defaults.set(isHapticsEnabled, forKey: hapticsKey) } }
+    @Published var isHapticsEnabled: Bool = true { 
+        didSet { 
+            guard oldValue != isHapticsEnabled else { return }
+            defaults.set(isHapticsEnabled, forKey: hapticsKey) 
+        } 
+    }
     /// Confirm before clear
-    @Published var confirmClearLocation: Bool = true { didSet { defaults.set(confirmClearLocation, forKey: confirmClearKey) } }
+    @Published var confirmClearLocation: Bool = true { 
+        didSet { 
+            guard oldValue != confirmClearLocation else { return }
+            defaults.set(confirmClearLocation, forKey: confirmClearKey) 
+        } 
+    }
     /// Auto start timer after save
-    @Published var autoStartTimer: Bool = false { didSet { defaults.set(autoStartTimer, forKey: autoStartTimerKey) } }
+    @Published var autoStartTimer: Bool = false { 
+        didSet { 
+            guard oldValue != autoStartTimer else { return }
+            defaults.set(autoStartTimer, forKey: autoStartTimerKey) 
+        } 
+    }
     /// Which detail sections are visible
-    @Published var showNotes: Bool = false { didSet { defaults.set(showNotes, forKey: showNotesKey) } }
-    @Published var showTimer: Bool = false { didSet { defaults.set(showTimer, forKey: showTimerKey) } }
-    @Published var showPhoto: Bool = false { didSet { defaults.set(showPhoto, forKey: showPhotoKey) } }
+    @Published var showNotes: Bool = false { 
+        didSet { 
+            guard oldValue != showNotes else { return }
+            defaults.set(showNotes, forKey: showNotesKey) 
+        } 
+    }
+    @Published var showTimer: Bool = false { 
+        didSet { 
+            guard oldValue != showTimer else { return }
+            defaults.set(showTimer, forKey: showTimerKey) 
+        } 
+    }
+    @Published var showPhoto: Bool = false { 
+        didSet { 
+            guard oldValue != showPhoto else { return }
+            defaults.set(showPhoto, forKey: showPhotoKey) 
+        } 
+    }
     /// Onboarding state
     @Published var hasSeenOnboarding: Bool = false { didSet { defaults.set(hasSeenOnboarding, forKey: onboardingKey) } }
 

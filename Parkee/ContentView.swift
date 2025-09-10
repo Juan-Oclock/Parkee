@@ -22,6 +22,7 @@ struct ContentView: View {
     @State private var annotationOffset: CGFloat = 0
     @State private var showCustomEndAlert = false
     @State private var pulseAnimation: Bool = false
+    @State private var hasInitializedCamera = false
 
     private var resolvedMapStyle: MapStyle {
         // Apply the user's selected map style regardless of dark mode
@@ -133,12 +134,19 @@ struct ContentView: View {
             .ignoresSafeArea()
             .mapStyle(resolvedMapStyle)
             .preferredColorScheme(viewModel.useDarkMap ? .dark : .light)
-            .id("map-\(viewModel.preferredMapStyle)-\(viewModel.useDarkMap)")
-            .onReceive(viewModel.$lastKnownCoordinate) { newCoord in
+            // Removed .id() to prevent map recreation on preference changes
+            .onReceive(viewModel.$lastKnownCoordinate
+                .removeDuplicates(by: { prev, new in
+                    // Only update if coordinate actually changed significantly
+                    guard let prev = prev, let new = new else { return prev == nil && new == nil }
+                    return abs(prev.latitude - new.latitude) < 0.0001 && 
+                           abs(prev.longitude - new.longitude) < 0.0001
+                })
+            ) { newCoord in
                 // Center camera on user location when we receive it
                 guard let coord = newCoord else { return }
-                // Only auto-center if we don't have a saved location
-                if viewModel.savedLocation == nil {
+                // Only auto-center if we don't have a saved location and haven't initialized
+                if viewModel.savedLocation == nil && !hasInitializedCamera {
                     withAnimation(.easeInOut(duration: 0.35)) {
                         cameraPosition = .region(
                             MKCoordinateRegion(
@@ -147,6 +155,7 @@ struct ContentView: View {
                             )
                         )
                     }
+                    hasInitializedCamera = true
                 }
             }
             .onReceive(viewModel.$savedLocation) { savedLoc in
@@ -201,12 +210,12 @@ struct ContentView: View {
                         viewModel.saveCurrentLocation()
                         // Wait for save to complete before showing sheet
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                            // Sync notes when showing sheet
+                            // Load notes from viewModel when showing sheet
                             parkingNotes = viewModel.parkingNotes
                             showParkingDetailsSheet = true
                         }
                     } else {
-                        // Sync notes when showing sheet
+                        // Load notes from viewModel when showing sheet
                         parkingNotes = viewModel.parkingNotes
                         showParkingDetailsSheet = true
                     }
@@ -265,13 +274,14 @@ struct ContentView: View {
         .onAppear {
             viewModel.requestPermissionIfNeeded()
             // If CoreLocation has a cached coordinate, center immediately to avoid Cupertino default
-            if let coord = viewModel.immediateCoordinate() {
+            if !hasInitializedCamera, let coord = viewModel.immediateCoordinate() {
                 cameraPosition = .region(
                     MKCoordinateRegion(
                         center: coord,
                         span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
                     )
                 )
+                hasInitializedCamera = true
             }
             viewModel.refreshCurrentLocationForDisplay()
         }
@@ -290,7 +300,10 @@ struct ContentView: View {
         } message: {
             Text("You need to park your car first before you can get directions to it. Tap 'Park My Car' to save your current location.")
         }
-        .sheet(isPresented: $showDirectionsModal) {
+        .sheet(isPresented: $showDirectionsModal, onDismiss: {
+            // When returning from directions, reload notes from viewModel
+            parkingNotes = viewModel.parkingNotes
+        }) {
             if let savedLocation = viewModel.savedLocation,
                let currentLocation = viewModel.lastKnownCoordinate {
                 DirectionsMapView(
@@ -358,10 +371,9 @@ struct ContentView: View {
                                 // End Session button with custom color
                                 Button(action: {
                                     showEndSessionConfirm = false
-                                    // Sync notes to viewModel BEFORE clearing data
-                                    viewModel.parkingNotes = parkingNotes
+                                    // Notes are already synced to viewModel at this point
                                     viewModel.clearAllParkingData()
-                                    // Clear local notes state
+                                    // Clear local notes state only after ending session
                                     parkingNotes = ""
                                 }) {
                                     Text("End Session")
@@ -398,7 +410,10 @@ struct ContentView: View {
             // Move entire annotation up when directions modal is shown, down when hidden
             annotationOffset = isShowing ? -150 : 0
         }
-        .sheet(isPresented: $showParkingDetailsSheet) {
+        .sheet(isPresented: $showParkingDetailsSheet, onDismiss: {
+            // Save notes back to viewModel when sheet is dismissed (not ending session)
+            viewModel.parkingNotes = parkingNotes
+        }) {
             ParkingDetailsSheet(
                 parkingNotes: $parkingNotes,
                 isTimerRunning: viewModel.isTimerRunning,
@@ -415,13 +430,17 @@ struct ContentView: View {
                 onResetTimer: { 
                     viewModel.resetTimer()
                 },
-                onShowDirections: { 
+                onShowDirections: {
+                    // Save notes before showing directions
+                    viewModel.parkingNotes = parkingNotes
                     showParkingDetailsSheet = false
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                         showDirectionsModal = true
                     }
                 },
-                onEndSession: { 
+                onEndSession: {
+                    // Save notes before ending session
+                    viewModel.parkingNotes = parkingNotes
                     showParkingDetailsSheet = false
                     showEndSessionConfirm = true
                 }
@@ -434,7 +453,7 @@ struct ContentView: View {
             .presentationBackgroundInteraction(.enabled)
         }
         .onDisappear {
-            // Save notes back to viewModel when leaving
+            // Save notes back to viewModel when leaving the view entirely
             viewModel.parkingNotes = parkingNotes
         }
         }
