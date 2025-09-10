@@ -133,7 +133,7 @@ struct ParkingDetailsSheet: View {
                         dismiss()
                     }
                     .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(Color.yellowGreen)
+                    .foregroundColor(colorScheme == .dark ? Color.yellowGreen : Color(red: 0.118, green: 0.118, blue: 0.165))
                 }
             }
         }
@@ -180,7 +180,7 @@ struct ParkingDetailsSheet: View {
                     
                     Image(systemName: expandedNotes ? "chevron.up" : "chevron.down")
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(Color.yellowGreen)
+                        .foregroundColor(colorScheme == .dark ? Color.yellowGreen : Color(red: 0.118, green: 0.118, blue: 0.165))
                         .padding(.leading, 8)
                 }
                 .padding(20)
@@ -261,7 +261,7 @@ struct ParkingDetailsSheet: View {
                     
                     Image(systemName: expandedTimer ? "chevron.up" : "chevron.down")
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(Color.yellowGreen)
+                        .foregroundColor(colorScheme == .dark ? Color.yellowGreen : Color(red: 0.118, green: 0.118, blue: 0.165))
                         .padding(.leading, 8)
                 }
                 .padding(20)
