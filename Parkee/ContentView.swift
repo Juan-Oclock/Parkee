@@ -21,8 +21,7 @@ struct ContentView: View {
     @State private var parkingNotes: String = ""
     @State private var annotationOffset: CGFloat = 0
     @State private var showCustomEndAlert = false
-    @State private var pulseScale: CGFloat = 1.0
-    @State private var pulseOpacity: Double = 0.3
+    @State private var pulseAnimation: Bool = false
 
     private var resolvedMapStyle: MapStyle {
         // Apply the user's selected map style regardless of dark mode
@@ -87,26 +86,27 @@ struct ContentView: View {
                             
                             // Car marker with animated pulse rings
                             ZStack {
-                                // Outer animated pulse ring
+                                // Animated expanding pulse ring (fades out as it expands)
                                 Circle()
-                                    .fill(Color.yellowGreen.opacity(0.15))
-                                    .frame(width: 100, height: 100)
-                                    .scaleEffect(pulseScale * 1.3)
-                                    .opacity(pulseOpacity * 0.6)
-                                
-                                // Middle animated pulse ring
-                                Circle()
-                                    .fill(Color.yellowGreen.opacity(0.25))
-                                    .frame(width: 80, height: 80)
-                                    .scaleEffect(pulseScale * 1.1)
-                                    .opacity(pulseOpacity * 0.8)
-                                
-                                // Inner pulse ring
-                                Circle()
-                                    .fill(Color.yellowGreen.opacity(0.35))
+                                    .stroke(Color.yellowGreen, lineWidth: 2)
                                     .frame(width: 60, height: 60)
-                                    .scaleEffect(pulseScale)
-                                    .opacity(pulseOpacity)
+                                    .scaleEffect(pulseAnimation ? 2.0 : 1.0)
+                                    .opacity(pulseAnimation ? 0.0 : 0.6)
+                                    .animation(
+                                        .easeOut(duration: 2.0)
+                                        .repeatForever(autoreverses: false),
+                                        value: pulseAnimation
+                                    )
+                                
+                                // Static outer ring for visibility
+                                Circle()
+                                    .fill(Color.yellowGreen.opacity(0.2))
+                                    .frame(width: 100, height: 100)
+                                
+                                // Static middle ring
+                                Circle()
+                                    .fill(Color.yellowGreen.opacity(0.3))
+                                    .frame(width: 70, height: 70)
                                 
                                 // Main marker (static)
                                 ZStack {
@@ -121,13 +121,8 @@ struct ContentView: View {
                                 .shadow(color: Color.yellowGreen.opacity(0.5), radius: 8, y: 4)
                             }
                             .onAppear {
-                                // Start the pulsing animation
-                                withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
-                                    pulseScale = 1.4
-                                }
-                                withAnimation(.easeInOut(duration: 2.5).repeatForever(autoreverses: true)) {
-                                    pulseOpacity = 0.1
-                                }
+                                // Trigger the pulse animation
+                                pulseAnimation = true
                             }
                         }
                         .offset(y: annotationOffset)
