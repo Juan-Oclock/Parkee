@@ -13,6 +13,7 @@ struct DirectionsMapView: View {
     let currentLocation: CLLocationCoordinate2D
     let destination: CLLocationCoordinate2D
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) var colorScheme
     @StateObject private var viewModel: DirectionsViewModel
     @State private var cameraPosition: MapCameraPosition = .automatic
     
@@ -25,32 +26,72 @@ struct DirectionsMapView: View {
         ))
     }
     
+    // MARK: - Color System
+    var backgroundColor: Color {
+        colorScheme == .dark ? Color(red: 0.118, green: 0.118, blue: 0.165) : Color.white
+    }
+    
+    var cardBackground: Color {
+        colorScheme == .dark ? Color(red: 0.176, green: 0.176, blue: 0.208) : Color(UIColor.systemGray6)
+    }
+    
+    var primaryText: Color {
+        colorScheme == .dark ? .white : .black
+    }
+    
+    var secondaryText: Color {
+        colorScheme == .dark ? Color.white.opacity(0.5) : Color.black.opacity(0.5)
+    }
+    
     var body: some View {
-        ZStack {
+        NavigationView {
+            ZStack {
+                // Background color
+                backgroundColor.ignoresSafeArea()
+                
                 Map(position: $cameraPosition) {
                     // Current location marker
                     Annotation("Your Location", coordinate: currentLocation) {
-                        Image(systemName: "location.fill")
-                            .font(.system(size: 20))
-                            .foregroundStyle(.blue)
-                            .background(Circle().fill(.white))
+                        ZStack {
+                            Circle()
+                                .fill(Color.blue.opacity(0.3))
+                                .frame(width: 30, height: 30)
+                            Circle()
+                                .fill(Color.blue)
+                                .frame(width: 16, height: 16)
+                            Circle()
+                                .fill(.white)
+                                .frame(width: 6, height: 6)
+                        }
                     }
                     
-                    // Parked car marker
+                    // Parked car marker with Parkee style
                     Annotation("Parked Car", coordinate: destination) {
-                        Image(systemName: "car.fill")
-                            .font(.system(size: 24))
-                            .foregroundStyle(.red)
-                            .background(Circle().fill(.white))
+                        ZStack {
+                            Circle()
+                                .fill(Color.yellowGreen.opacity(0.3))
+                                .frame(width: 40, height: 40)
+                            Circle()
+                                .fill(Color.yellowGreen)
+                                .frame(width: 30, height: 30)
+                            Image(systemName: "car.fill")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(.black)
+                        }
+                        .shadow(color: Color.yellowGreen.opacity(0.5), radius: 5, y: 3)
                     }
                     
                     // Show route if available
                     if let route = viewModel.route {
                         MapPolyline(route.polyline)
-                            .stroke(.blue, lineWidth: 5)
+                            .stroke(Color.yellowGreen, lineWidth: 5)
                     }
                 }
                 .mapStyle(.standard)
+                .clipShape(RoundedRectangle(cornerRadius: 20))
+                .padding(.horizontal, 16)
+                .padding(.top, 10)  // Reduced from 70 to give map more height
+                .padding(.bottom, 100)
                 .onAppear {
                     // Set initial camera position to show both points
                     let region = regionThatFits(
@@ -65,90 +106,139 @@ struct DirectionsMapView: View {
                 
                 // Loading indicator
                 if viewModel.isLoading {
-                    VStack {
+                    VStack(spacing: 12) {
                         ProgressView()
                             .scaleEffect(1.2)
+                            .tint(Color.yellowGreen)
                         Text("Getting directions...")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .padding(.top, 8)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(secondaryText)
                     }
-                    .padding()
-                    .background(.regularMaterial)
-                    .cornerRadius(12)
+                    .padding(20)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(cardBackground)
+                    )
                 }
                 
-                // Distance and time info
-                if let route = viewModel.route {
-                    VStack {
-                        Spacer()
-                        VStack(spacing: 8) {
-                            HStack {
-                                Image(systemName: "location.north.fill")
-                                    .foregroundColor(.blue)
-                                Text(formatDistance(route.distance))
-                                    .font(.headline)
+                // Distance and time info bottom card
+                VStack {
+                    Spacer()
+                    
+                    if let route = viewModel.route {
+                        VStack(spacing: 16) {
+                            // Context-aware suggestion
+                            contextAwareSuggestion(for: route)
+                            
+                            // Route info
+                            HStack(spacing: 30) {
+                                // Distance
+                                HStack(spacing: 8) {
+                                    Image(systemName: "location.north.circle.fill")
+                                        .font(.system(size: 20))
+                                        .foregroundColor(Color.yellowGreen)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(formatDistance(route.distance))
+                                            .font(.system(size: 18, weight: .bold))
+                                            .foregroundColor(primaryText)
+                                        Text("Distance")
+                                            .font(.system(size: 12))
+                                            .foregroundColor(secondaryText)
+                                    }
+                                }
+                                
+                                // Time
+                                HStack(spacing: 8) {
+                                    Image(systemName: "clock.circle.fill")
+                                        .font(.system(size: 20))
+                                        .foregroundColor(Color.yellowGreen)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(formatTime(route.expectedTravelTime))
+                                            .font(.system(size: 18, weight: .bold))
+                                            .foregroundColor(primaryText)
+                                        Text("Duration")
+                                            .font(.system(size: 12))
+                                            .foregroundColor(secondaryText)
+                                    }
+                                }
                                 
                                 Spacer()
-                                
-                                Image(systemName: "clock.fill")
-                                    .foregroundColor(.blue)
-                                Text(formatTime(route.expectedTravelTime))
-                                    .font(.headline)
                             }
+                            .padding(.horizontal, 20)
                             
-                            Button("Open in Maps App") {
-                                openInMapsApp()
+                            // Smart Open in Maps button with context
+                            Button(action: openInMapsApp) {
+                                HStack(spacing: 10) {
+                                    Image(systemName: getNavigationIcon(for: route))
+                                        .font(.system(size: 18))
+                                    Text(getNavigationButtonText(for: route))
+                                        .font(.system(size: 16, weight: .semibold))
+                                }
+                                .foregroundColor(.black)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                        .fill(Color.yellowGreen)
+                                )
                             }
-                            .font(.subheadline)
-                            .foregroundColor(.blue)
+                            .padding(.horizontal, 20)
                         }
-                        .padding()
-                        .background(.regularMaterial)
-                        .cornerRadius(12)
-                        .padding(.horizontal)
+                        .padding(.vertical, 20)
+                        .background(
+                            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                .fill(cardBackground)
+                        )
+                        .padding(.horizontal, 16)
                         .padding(.bottom, 20)
                     }
                 }
                 
                 // Error message
                 if let errorMessage = viewModel.errorMessage {
-                    VStack {
+                    VStack(spacing: 12) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 24))
+                            .foregroundColor(.red)
                         Text("Directions Unavailable")
-                            .font(.headline)
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(primaryText)
                         Text(errorMessage)
-                            .font(.caption)
+                            .font(.system(size: 14))
+                            .foregroundColor(secondaryText)
                             .multilineTextAlignment(.center)
-                        Button("Try Again") {
-                            viewModel.getDirections()
+                        Button(action: { viewModel.getDirections() }) {
+                            Text("Try Again")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 8)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .fill(Color.yellowGreen)
+                                )
                         }
-                        .padding(.top, 8)
+                        .padding(.top, 4)
                     }
-                    .padding()
-                    .background(.regularMaterial)
-                    .cornerRadius(12)
+                    .padding(20)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(cardBackground)
+                    )
                 }
             }
-            .overlay(alignment: .top) {
-                // Custom header with title and close button
-                HStack {
-                    Text("Directions to Car")
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                    Spacer()
+            .navigationTitle("Directions to Car")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") {
                         dismiss()
                     }
-                    .font(.body)
-                    .fontWeight(.medium)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(Color.yellowGreen)
                 }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 16)
-                .background(.regularMaterial)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .padding(.top, 8)
-                .padding(.horizontal, 16)
             }
+        }
     }
     
     private func regionThatFits(coordinate1: CLLocationCoordinate2D, coordinate2: CLLocationCoordinate2D) -> MKCoordinateRegion {
@@ -163,8 +253,8 @@ struct DirectionsMapView: View {
         )
         
         let span = MKCoordinateSpan(
-            latitudeDelta: (maxLat - minLat) * 1.3, // Add some padding
-            longitudeDelta: (maxLon - minLon) * 1.3
+            latitudeDelta: max((maxLat - minLat) * 1.8, 0.01), // More padding for better overview
+            longitudeDelta: max((maxLon - minLon) * 1.8, 0.01)
         )
         
         return MKCoordinateRegion(center: center, span: span)
@@ -192,8 +282,79 @@ struct DirectionsMapView: View {
         let mapItem = MKMapItem(placemark: placemark)
         mapItem.name = "Parked Car"
         
-        let launchOptions = [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving]
+        // Smart transport mode based on distance
+        let directionsMode: String
+        if let route = viewModel.route {
+            // Use walking for short distances (< 0.5 miles), driving for longer
+            directionsMode = route.distance < 804.67 ? MKLaunchOptionsDirectionsModeWalking : MKLaunchOptionsDirectionsModeDriving
+        } else {
+            directionsMode = MKLaunchOptionsDirectionsModeDriving
+        }
+        
+        let launchOptions = [MKLaunchOptionsDirectionsModeKey: directionsMode]
         mapItem.openInMaps(launchOptions: launchOptions)
+    }
+    
+    // MARK: - Context-Aware Suggestions
+    @ViewBuilder
+    private func contextAwareSuggestion(for route: MKRoute) -> some View {
+        let suggestion = getContextualSuggestion(for: route)
+        
+        HStack(spacing: 8) {
+            Image(systemName: suggestion.icon)
+                .font(.system(size: 16))
+                .foregroundColor(Color.yellowGreen)
+            
+            Text(suggestion.message)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(primaryText)
+            
+            Spacer()
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.yellowGreen.opacity(0.1))
+        )
+        .padding(.horizontal, 20)
+    }
+    
+    private func getContextualSuggestion(for route: MKRoute) -> (icon: String, message: String) {
+        let distanceInMiles = route.distance * 0.000621371 // Convert meters to miles
+        let timeInMinutes = route.expectedTravelTime / 60
+        
+        if distanceInMiles < 0.1 {
+            return ("figure.walk", "Very close! Just a short walk to your car.")
+        } else if distanceInMiles < 0.3 {
+            return ("figure.walk", "Perfect walking distance - about \(Int(timeInMinutes)) minutes.")
+        } else if distanceInMiles < 0.5 {
+            return ("figure.walk", "Moderate walk - consider the weather and your energy!")
+        } else if distanceInMiles < 2.0 {
+            return ("car", "Good driving distance - hop in a rideshare or drive.")
+        } else if timeInMinutes > 20 {
+            return ("map", "Complex route ahead - navigation recommended.")
+        } else {
+            return ("car", "Quick drive to your car.")
+        }
+    }
+    
+    private func getNavigationIcon(for route: MKRoute) -> String {
+        let distanceInMiles = route.distance * 0.000621371
+        return distanceInMiles < 0.5 ? "figure.walk" : "car.fill"
+    }
+    
+    private func getNavigationButtonText(for route: MKRoute) -> String {
+        let distanceInMiles = route.distance * 0.000621371
+        let timeInMinutes = route.expectedTravelTime / 60
+        
+        if distanceInMiles < 0.5 {
+            return "Get Walking Directions"
+        } else if timeInMinutes > 15 {
+            return "Navigate with Turn-by-Turn"
+        } else {
+            return "Get Driving Directions"
+        }
     }
 }
 

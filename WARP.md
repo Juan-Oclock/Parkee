@@ -91,11 +91,13 @@ The ViewModel uses `@Published` properties for UI binding and UserDefaults for p
 ## Design System
 
 ### Colors
-- Primary Green: `#2EEA7B` (main action button)
-- Primary Black: `#0A0A0A` (secondary actions with white text)
-- Gray Card: `#F2F3F5` (card backgrounds)
-- Divider Gray: `#E3E5E8`
-- Background: White only (no dark mode)
+- Iris Purple: `#6B41C7` (primary brand color, backgrounds, headers)
+- Yellow Green: `#A8DE28` (primary action buttons, main CTAs)
+- Raisin Black: `#1E1E2A` (dark backgrounds, primary text)
+- Apple Green: `#8DB633` (secondary accents, progress indicators, success states)
+- Dark Card: `#2D2D35` (card backgrounds, secondary dark elements)
+- White: `#FFFFFF` (light text, highlights)
+- Background: Dark theme with Iris Purple and Raisin Black
 
 ### Typography
 - Titles: 28pt bold
@@ -137,9 +139,11 @@ The ViewModel uses `@Published` properties for UI binding and UserDefaults for p
 - Full-width cards with 16pt margins
 - Use Apple Maps for navigation (not custom implementation)
 - Maintain consistent spacing and typography scale
-- Green primary button for main actions
-- Black secondary buttons with white text
-- System gray backgrounds for cards and inputs
+- Yellow Green primary buttons for main actions (#A8DE28)
+- Iris Purple backgrounds and headers (#6B41C7)
+- Dark card backgrounds (#2D2D35) with white text
+- Raisin Black for primary dark areas (#1E1E2A)
+- Apple Green for secondary accents and success states (#8DB633)
 
 ## Testing Strategy
 

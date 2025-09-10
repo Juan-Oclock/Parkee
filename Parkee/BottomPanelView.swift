@@ -10,7 +10,7 @@ import SwiftUI
 struct BottomPanelView: View, Equatable {
     // Only the specific data we need - not the whole ViewModel
     @Binding var parkingNotes: String
-    @Binding var isTimerRunning: Bool
+    let isTimerRunning: Bool
     let timerStartDate: Date?
     let accumulatedSeconds: TimeInterval
     let savedAddress: String?
@@ -69,7 +69,13 @@ struct BottomPanelView: View, Equatable {
                 // Action Buttons
                 VStack(spacing: 12) {
                     // Directions Button
-                    Button(action: onShowDirections) {
+                    Button(action: {
+                        // Dismiss keyboard first, then show directions
+                        if notesFocused {
+                            notesFocused = false
+                        }
+                        onShowDirections()
+                    }) {
                         HStack(spacing: 10) {
                             Image(systemName: "location.north.circle.fill")
                                 .font(.system(size: 20))
@@ -87,7 +93,13 @@ struct BottomPanelView: View, Equatable {
                     .buttonStyle(PlainButtonStyle())
 
                     // End Session Button
-                    Button(action: onEndSession) {
+                    Button(action: {
+                        // Dismiss keyboard first, then end session
+                        if notesFocused {
+                            notesFocused = false
+                        }
+                        onEndSession()
+                    }) {
                         Text("End Parking Session")
                             .font(.system(size: 17, weight: .medium))
                             .foregroundColor(colorScheme == .dark ? Color.yellowGreen : .red)
@@ -103,6 +115,13 @@ struct BottomPanelView: View, Equatable {
             .background(
                 backgroundColor
                     .ignoresSafeArea()
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        // Dismiss keyboard when tapping the background
+                        if notesFocused {
+                            notesFocused = false
+                        }
+                    }
             )
         }
         .onAppear {
@@ -114,6 +133,7 @@ struct BottomPanelView: View, Equatable {
         
         .onChange(of: notesFocused) { _, isFocused in
             if !isFocused {
+                // Auto-collapse notes section when focus is lost
                 withAnimation(.easeInOut(duration: 0.25)) {
                     expandedNotes = false
                 }
@@ -200,9 +220,13 @@ struct BottomPanelView: View, Equatable {
         .padding(.top, 16)
         .onChange(of: expandedNotes) { _, isExpanded in
             if isExpanded {
+                // Auto-focus when expanded
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     notesFocused = true
                 }
+            } else {
+                // Remove focus when collapsed
+                notesFocused = false
             }
         }
     }

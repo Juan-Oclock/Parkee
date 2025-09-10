@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		5EF5C6982E6D404200C008DC /* Lottie in Frameworks */ = {isa = PBXBuildFile; productRef = 5EF5C6972E6D404200C008DC /* Lottie */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		5E0822222E6B03F5003E6007 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +56,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5EF5C6982E6D404200C008DC /* Lottie in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +117,7 @@
 			);
 			name = Parkee;
 			packageProductDependencies = (
+				5EF5C6972E6D404200C008DC /* Lottie */,
 			);
 			productName = Parkee;
 			productReference = 5E0822142E6B03F3003E6007 /* Parkee.app */;
@@ -195,6 +201,9 @@
 			);
 			mainGroup = 5E08220B2E6B03F3003E6007;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				5EF5C6962E6D404200C008DC /* XCRemoteSwiftPackageReference "lottie-spm" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 5E0822152E6B03F3003E6007 /* Products */;
 			projectDirPath = "";
@@ -558,6 +567,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		5EF5C6962E6D404200C008DC /* XCRemoteSwiftPackageReference "lottie-spm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/airbnb/lottie-spm.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 4.5.2;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		5EF5C6972E6D404200C008DC /* Lottie */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5EF5C6962E6D404200C008DC /* XCRemoteSwiftPackageReference "lottie-spm" */;
+			productName = Lottie;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 5E08220C2E6B03F3003E6007 /* Project object */;
 }

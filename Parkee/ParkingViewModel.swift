@@ -33,7 +33,14 @@ final class ParkingViewModel: NSObject, ObservableObject {
     /// Timer state
     @Published var isTimerRunning: Bool = false
     @Published var accumulatedSeconds: TimeInterval = 0
+    @Published var elapsedTimeString: String = "00:00"
+    private var timer: Timer?
     private var timerStartDate: Date? = nil
+    
+    /// Getter for timer start date (for isolated views)
+    var timerStart: Date? {
+        return timerStartDate
+    }
     /// Optional saved photo URL
     @Published var photoURL: URL? = nil
     /// Map appearance preference
@@ -62,6 +69,8 @@ final class ParkingViewModel: NSObject, ObservableObject {
     @Published var showNotes: Bool = false { didSet { defaults.set(showNotes, forKey: showNotesKey) } }
     @Published var showTimer: Bool = false { didSet { defaults.set(showTimer, forKey: showTimerKey) } }
     @Published var showPhoto: Bool = false { didSet { defaults.set(showPhoto, forKey: showPhotoKey) } }
+    /// Onboarding state
+    @Published var hasSeenOnboarding: Bool = false { didSet { defaults.set(hasSeenOnboarding, forKey: onboardingKey) } }
 
     // MARK: - Private properties
     private let locationManager: CLLocationManager
@@ -93,6 +102,7 @@ final class ParkingViewModel: NSObject, ObservableObject {
     private let hapticsKey = "parkee.haptics"
     private let confirmClearKey = "parkee.confirm.clear"
     private let autoStartTimerKey = "parkee.autostart.timer"
+    private let onboardingKey = "parkee.onboarding.completed"
 
     @Published var history: [ParkingRecord] = []
 
@@ -117,6 +127,7 @@ final class ParkingViewModel: NSObject, ObservableObject {
         isHapticsEnabled = defaults.object(forKey: hapticsKey) as? Bool ?? true
         confirmClearLocation = defaults.object(forKey: confirmClearKey) as? Bool ?? true
         autoStartTimer = defaults.bool(forKey: autoStartTimerKey)
+        hasSeenOnboarding = defaults.bool(forKey: onboardingKey)
         authorizationStatus = locationManager.authorizationStatus
     }
 
@@ -164,12 +175,20 @@ final class ParkingViewModel: NSObject, ObservableObject {
         isHapticsEnabled = true
         confirmClearLocation = true
         autoStartTimer = false
+        hasSeenOnboarding = false
         
         // Clear all UserDefaults keys
-        let keys = [showCompassKey, showScaleKey, followOnLaunchKey, showAddressKey, mapsModeKey, unitsKey, hapticsKey, confirmClearKey, autoStartTimerKey]
+        let keys = [showCompassKey, showScaleKey, followOnLaunchKey, showAddressKey, mapsModeKey, unitsKey, hapticsKey, confirmClearKey, autoStartTimerKey, onboardingKey]
         keys.forEach { defaults.removeObject(forKey: $0) }
         
         print("🔄 All app data reset for testing new features")
+    }
+    
+    // MARK: - Onboarding
+    /// Marks onboarding as completed and transitions to main app
+    func completeOnboarding() {
+        hasSeenOnboarding = true
+        print("✅ Onboarding completed")
     }
     
     // MARK: - Actions
@@ -251,9 +270,18 @@ final class ParkingViewModel: NSObject, ObservableObject {
 
     // MARK: - Notes & Timer persistence
     private func loadNotesAndTimer() {
-        if let notes = defaults.string(forKey: notesKey) {
+        // Only load notes if there's an active parking session (saved location exists)
+        // This prevents notes from previous sessions from appearing in new sessions
+        let hasActiveSession = defaults.object(forKey: latKey) != nil && defaults.object(forKey: lonKey) != nil
+        
+        if hasActiveSession, let notes = defaults.string(forKey: notesKey) {
             parkingNotes = notes
+        } else {
+            // Clear notes if no active session
+            parkingNotes = ""
+            defaults.removeObject(forKey: notesKey)
         }
+        
         let accum = defaults.double(forKey: timerAccumKey)
         let hasAccum = defaults.object(forKey: timerAccumKey) != nil
         if hasAccum { accumulatedSeconds = accum }
@@ -344,11 +372,36 @@ final class ParkingViewModel: NSObject, ObservableObject {
 
     /// Clears all persisted parking-related data: location, timer, notes, photo, timestamps, and address
     func clearAllParkingData() {
+        // Capture all current session data before clearing anything
+        let currentLocation = savedLocation
+        let currentSavedAt = savedAt
+        let currentLocationName = savedLocationName
+        let currentAddress = savedAddress
+        let currentNotes = parkingNotes
+        let currentTimer = currentElapsedSeconds()
+        let hasPhoto = photoURL != nil
+        
         // Save to history before clearing (end of parking session)
-        if let savedLocation = savedLocation {
-            appendToHistory(location: savedLocation)
+        if let location = currentLocation {
+            // Create history record with captured data
+            let record = ParkingRecord(
+                latitude: location.latitude,
+                longitude: location.longitude,
+                savedAt: currentSavedAt ?? Date(),
+                locationName: currentLocationName ?? currentAddress,
+                notes: currentNotes.isEmpty ? nil : currentNotes,
+                timerSeconds: currentTimer > 0 ? currentTimer : nil,
+                hasPhoto: hasPhoto
+            )
+            
+            history.insert(record, at: 0)
+            saveHistory()
+            
+            // Force reload to ensure UI updates
+            objectWillChange.send()
         }
         
+        // Now clear everything
         // Location
         clearLocation()
         savedAt = nil
@@ -361,7 +414,7 @@ final class ParkingViewModel: NSObject, ObservableObject {
         // Timer
         resetTimer()
 
-        // Notes
+        // Notes - Clear for next session
         parkingNotes = ""
         defaults.removeObject(forKey: notesKey)
 
@@ -372,6 +425,10 @@ final class ParkingViewModel: NSObject, ObservableObject {
         showNotes = false
         showTimer = false
         showPhoto = false
+        
+        // Reload history to ensure UI is in sync
+        loadHistory()
+        objectWillChange.send()
     }
 }
 
@@ -400,7 +457,13 @@ extension ParkingViewModel: CLLocationManagerDelegate {
             savedLocation = saved
             persist(location: saved)
             reverseGeocode(coordinate: saved.coordinate)
-            // Note: appendToHistory will be called after reverse geocoding completes
+            // Note: History will be saved when user ends the parking session
+            
+            // Clear notes for new parking session (don't carry over from previous session)
+            if parkingNotes != "" {
+                parkingNotes = ""
+                defaults.removeObject(forKey: notesKey)
+            }
             
             // Reset Notes section to be open by default for new parking session
             showNotes = true
@@ -451,7 +514,6 @@ extension ParkingViewModel: CLLocationManagerDelegate {
             let decoded = try JSONDecoder().decode([ParkingRecord].self, from: data)
             history = decoded
         } catch {
-            print("Failed to load history, resetting: \(error.localizedDescription)")
             // Clear corrupted data and start fresh
             history = []
             defaults.removeObject(forKey: historyKey)
@@ -464,35 +526,16 @@ extension ParkingViewModel: CLLocationManagerDelegate {
         }
     }
 
-    private func appendToHistory(location: ParkingLocation) {
-        let currentNotes = parkingNotes.isEmpty ? nil : parkingNotes
-        let currentTimer = currentElapsedSeconds() > 0 ? currentElapsedSeconds() : nil
-        let hasCurrentPhoto = photoURL != nil
-        
-        let record = ParkingRecord(
-            latitude: location.latitude,
-            longitude: location.longitude,
-            savedAt: Date(),
-            locationName: savedLocationName ?? savedAddress,
-            notes: currentNotes,
-            timerSeconds: currentTimer,
-            hasPhoto: hasCurrentPhoto
-        )
-        
-        // Debug logging
-        NSLog("📍 Saving to history:")
-        NSLog("  Location name: %@", record.locationName ?? "nil")
-        NSLog("  Notes: %@", record.notes ?? "nil")
-        NSLog("  Timer: %@", record.timerSeconds?.description ?? "nil")
-        NSLog("  Has photo: %@", record.hasPhoto ? "true" : "false")
-        
-        history.insert(record, at: 0)
-        saveHistory()
-    }
+    // Note: appendToHistory function has been removed as history saving is now handled directly in clearAllParkingData()
 
     func clearHistory() {
         history.removeAll()
         defaults.removeObject(forKey: historyKey)
+    }
+    
+    func deleteHistoryItem(withId id: UUID) {
+        history.removeAll { $0.id == id }
+        saveHistory()
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {

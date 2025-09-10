@@ -9,9 +9,18 @@ import SwiftUI
 
 @main
 struct ParkeeApp: App {
+    @StateObject private var viewModel = ParkingViewModel()
+    
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            Group {
+                if viewModel.hasSeenOnboarding {
+                    ContentView()
+                        .environmentObject(viewModel)
+                } else {
+                    OnboardingView(viewModel: viewModel)
+                }
+            }
         }
     }
 }
