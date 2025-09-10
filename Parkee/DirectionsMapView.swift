@@ -103,6 +103,21 @@ struct DirectionsMapView: View {
                     // Request directions
                     viewModel.getDirections()
                 }
+                .onReceive(viewModel.$route) { route in
+                    // Adjust camera when route is calculated to show the entire route
+                    if route != nil {
+                        // Small delay to ensure route polyline is rendered
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            withAnimation(.easeInOut(duration: 0.5)) {
+                                let adjustedRegion = regionThatFits(
+                                    coordinate1: currentLocation,
+                                    coordinate2: destination
+                                )
+                                cameraPosition = .region(adjustedRegion)
+                            }
+                        }
+                    }
+                }
                 
                 // Loading indicator
                 if viewModel.isLoading {
@@ -252,9 +267,31 @@ struct DirectionsMapView: View {
             longitude: (minLon + maxLon) / 2
         )
         
+        // Calculate the distance to determine appropriate padding
+        let latDelta = maxLat - minLat
+        let lonDelta = maxLon - minLon
+        
+        // Dynamic padding based on distance
+        // Closer pins need more padding (relatively), farther pins need less
+        let paddingMultiplier: Double
+        if latDelta < 0.001 && lonDelta < 0.001 {
+            // Very close (< 100m approximately)
+            paddingMultiplier = 5.0  // Show wider area for context
+        } else if latDelta < 0.005 && lonDelta < 0.005 {
+            // Close (< 500m approximately)
+            paddingMultiplier = 3.0
+        } else if latDelta < 0.01 && lonDelta < 0.01 {
+            // Medium distance (< 1km approximately)
+            paddingMultiplier = 2.0
+        } else {
+            // Far distance
+            paddingMultiplier = 1.5
+        }
+        
+        // Ensure minimum span for visibility and maximum for usability
         let span = MKCoordinateSpan(
-            latitudeDelta: max((maxLat - minLat) * 1.8, 0.01), // More padding for better overview
-            longitudeDelta: max((maxLon - minLon) * 1.8, 0.01)
+            latitudeDelta: min(max(latDelta * paddingMultiplier, 0.003), 0.1),  // Min: ~300m view, Max: ~10km view
+            longitudeDelta: min(max(lonDelta * paddingMultiplier, 0.003), 0.1)
         )
         
         return MKCoordinateRegion(center: center, span: span)
