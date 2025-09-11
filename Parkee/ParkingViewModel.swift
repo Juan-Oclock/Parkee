@@ -184,8 +184,8 @@ final class ParkingViewModel: NSObject, ObservableObject {
         super.init()
         self.locationManager.delegate = self
         self.locationManager.desiredAccuracy = kCLLocationAccuracyBest
-        // Start updating location immediately for better responsiveness
-        self.locationManager.distanceFilter = 5 // Update every 5 meters
+        // Only update location when significant changes occur (saves battery)
+        self.locationManager.distanceFilter = 10 // Update every 10 meters
         
         loadPersistedLocation()
         loadNotesAndTimer()
@@ -206,13 +206,9 @@ final class ParkingViewModel: NSObject, ObservableObject {
         hasSeenOnboarding = defaults.bool(forKey: onboardingKey)
         authorizationStatus = locationManager.authorizationStatus
         
-        // Start continuous location updates if authorized
+        // Request a single location update on launch if authorized
         if authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways {
-            locationManager.startUpdatingLocation()
-            // Stop after a short time to save battery
-            DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
-                self?.locationManager.stopUpdatingLocation()
-            }
+            locationManager.requestLocation()  // Single request instead of continuous updates
         }
     }
 
@@ -265,15 +261,12 @@ final class ParkingViewModel: NSObject, ObservableObject {
         // Clear all UserDefaults keys
         let keys = [showCompassKey, showScaleKey, followOnLaunchKey, showAddressKey, mapsModeKey, unitsKey, hapticsKey, confirmClearKey, autoStartTimerKey, onboardingKey]
         keys.forEach { defaults.removeObject(forKey: $0) }
-        
-        print("🔄 All app data reset for testing new features")
     }
     
     // MARK: - Onboarding
     /// Marks onboarding as completed and transitions to main app
     func completeOnboarding() {
         hasSeenOnboarding = true
-        print("✅ Onboarding completed")
     }
     
     // MARK: - Actions

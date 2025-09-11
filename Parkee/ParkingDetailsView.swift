@@ -183,10 +183,16 @@ struct ParkingDetailsView: View {
                 savedAddress = address
             }
             
-            // Start periodic timer sync with proper reference for cleanup
-            updateTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
-                if cachedIsTimerRunning {
-                    syncTimerStateDefensively()
+            // Start periodic timer sync only when timer is running - less frequent updates
+            if cachedIsTimerRunning {
+                updateTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
+                    if cachedIsTimerRunning {
+                        syncTimerStateDefensively()
+                    } else {
+                        // Stop timer updates when not running
+                        updateTimer?.invalidate()
+                        updateTimer = nil
+                    }
                 }
             }
         }
@@ -300,11 +306,21 @@ struct ParkingDetailsView: View {
                let currentLoc = lastKnownCoordinate {
                 DirectionsMapView(
                     currentLocation: currentLoc,
-                    destination: savedLoc.coordinate
+                    destination: savedLoc.coordinate,
+                    onEndSession: {
+                        // Sync notes and clear parking data
+                        viewModel.parkingNotes = parkingNotes
+                        viewModel.clearAllParkingData()
+                        showDirectionsModal = false
+                        dismiss()
+                    }
                 )
-                .presentationDetents([.fraction(0.75)])
+                .presentationDetents([.large])  // Open directly at full height
                 .presentationDragIndicator(.visible)
                 .presentationCornerRadius(32)
+                .presentationBackground(.regularMaterial)
+                .interactiveDismissDisabled(false)  // Allow swipe down to dismiss
+                .presentationBackgroundInteraction(.disabled)  // No background interaction when fully expanded
             }
         }
         

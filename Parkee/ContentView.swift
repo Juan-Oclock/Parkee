@@ -23,6 +23,8 @@ struct ContentView: View {
     @State private var showCustomEndAlert = false
     @State private var pulseAnimation: Bool = false
     @State private var hasInitializedCamera = false
+    @State private var hasStartedZoomAnimation = false
+    @State private var isInitialLoad = true
 
     private var resolvedMapStyle: MapStyle {
         // Apply the user's selected map style regardless of dark mode
@@ -94,8 +96,9 @@ struct ContentView: View {
                                     .scaleEffect(pulseAnimation ? 2.0 : 1.0)
                                     .opacity(pulseAnimation ? 0.0 : 0.6)
                                     .animation(
-                                        .easeOut(duration: 2.0)
-                                        .repeatForever(autoreverses: false),
+                                        .easeOut(duration: 3.0)  // Slower animation for less CPU usage
+                                        .repeatForever(autoreverses: false)
+                                        .delay(0.5),  // Add delay between pulses
                                         value: pulseAnimation
                                     )
                                 
@@ -143,8 +146,44 @@ struct ContentView: View {
             ) { newCoord in
                 // Center camera on user location when we receive it
                 guard let coord = newCoord else { return }
-                // Only auto-center if we don't have a saved location and haven't initialized
-                if viewModel.savedLocation == nil && !hasInitializedCamera {
+                
+                // Start with a zoomed-out region on initial load
+                if isInitialLoad && !hasStartedZoomAnimation {
+                    hasStartedZoomAnimation = true
+                    cameraPosition = .region(
+                        MKCoordinateRegion(
+                            center: coord,
+                            span: MKCoordinateSpan(latitudeDelta: 0.5, longitudeDelta: 0.5) // zoomed out
+                        )
+                    )
+                    
+                    // Animate to a closer zoom to indicate the map is working
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        withAnimation(.easeInOut(duration: 1.0)) {
+                            cameraPosition = .region(
+                                MKCoordinateRegion(
+                                    center: coord,
+                                    span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+                                )
+                            )
+                        }
+                        
+                        // Final zoom after a short delay
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
+                            withAnimation(.easeInOut(duration: 0.6)) {
+                                cameraPosition = .region(
+                                    MKCoordinateRegion(
+                                        center: coord,
+                                        span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+                                    )
+                                )
+                                isInitialLoad = false
+                                hasInitializedCamera = true
+                            }
+                        }
+                    }
+                } else if viewModel.savedLocation == nil && !hasInitializedCamera {
+                    // Fallback centering if we haven't initialized through the animation
                     withAnimation(.easeInOut(duration: 0.35)) {
                         cameraPosition = .region(
                             MKCoordinateRegion(
@@ -159,7 +198,34 @@ struct ContentView: View {
             .onReceive(viewModel.$savedLocation) { savedLoc in
                 // Zoom to parking location when it's saved
                 guard let location = savedLoc else { return }
-                updateCameraForSavedLocation(location: location, offset: mapCameraOffset)
+                
+                // If this is the initial load with a saved location, start with zoom animation
+                if isInitialLoad && !hasStartedZoomAnimation {
+                    hasStartedZoomAnimation = true
+                    // Start zoomed out
+                    cameraPosition = .region(
+                        MKCoordinateRegion(
+                            center: location.coordinate,
+                            span: MKCoordinateSpan(latitudeDelta: 0.5, longitudeDelta: 0.5)
+                        )
+                    )
+                    
+                    // Animate zoom in to saved location
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        withAnimation(.easeInOut(duration: 1.2)) {
+                            updateCameraForSavedLocation(location: location, offset: mapCameraOffset)
+                            isInitialLoad = false
+                        }
+                    }
+                } else {
+                    updateCameraForSavedLocation(location: location, offset: mapCameraOffset)
+                }
+            }
+            .onAppear {
+                // If no location is available yet, request it to trigger the zoom animation
+                if viewModel.lastKnownCoordinate == nil && viewModel.savedLocation == nil {
+                    viewModel.refreshCurrentLocationForDisplay()
+                }
             }
 
             // Title + top action icons (anchored to top)
@@ -190,6 +256,29 @@ struct ContentView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 12)
+                
+                // Show locating indicator during initial zoom
+                if isInitialLoad && hasStartedZoomAnimation {
+                    HStack(spacing: 8) {
+                        Image(systemName: "location.fill")
+                            .font(.system(size: 14))
+                            .foregroundColor(Color.yellowGreen)
+                            .symbolEffect(.pulse.byLayer, options: .repeating)
+                        Text("Locating...")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(viewModel.useDarkMap ? .white : .black)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule()
+                            .fill(viewModel.useDarkMap ? Color.black.opacity(0.6) : Color.white.opacity(0.9))
+                            .shadow(radius: 4)
+                    )
+                    .padding(.top, 8)
+                    .transition(.opacity.combined(with: .scale))
+                }
+                
                 Spacer()
             }
 
@@ -307,13 +396,20 @@ struct ContentView: View {
                let currentLocation = viewModel.lastKnownCoordinate {
                 DirectionsMapView(
                     currentLocation: currentLocation,
-                    destination: savedLocation.coordinate
+                    destination: savedLocation.coordinate,
+                    onEndSession: {
+                        // Clear parking data when ending session from directions
+                        viewModel.parkingNotes = parkingNotes
+                        viewModel.clearAllParkingData()
+                        showDirectionsModal = false
+                    }
                 )
-                .presentationDetents([.fraction(0.7)])
+                .presentationDetents([.large])  // Open directly at full height
                 .presentationDragIndicator(.visible)
                 .presentationCornerRadius(32)
-                .presentationBackgroundInteraction(.enabled)  // Allow interaction with map behind
-                .interactiveDismissDisabled(false)
+                .presentationBackground(.regularMaterial)
+                .presentationBackgroundInteraction(.disabled)  // No background interaction when fully expanded
+                .interactiveDismissDisabled(false)  // Allow swipe down to dismiss
             }
         }
         .overlay(
